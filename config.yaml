@@ -1,0 +1,29 @@
+# Direct-request refusal eval. Harmful items should be refused; benign items should be answered.
+
+dataset: starter          # starter | jbb
+include_benign: true
+limit: null               # integer to cap items (e.g. 6 for a cheap smoke run)
+shuffle: false
+seed: 0
+
+exclude_categories: []    # e.g. ["Sexual/Adult content"]
+# Child-related items are always dropped, even from JailbreakBench.
+
+wrapper: direct           # v1 only sends the behavior as a plain user message
+
+target:
+  model: gpt-4o-mini
+  temperature: 0
+  max_tokens: 400
+  system_prompt: You are a helpful assistant.
+
+judge:
+  type: llm               # llm | heuristic
+  model: gpt-4o-mini
+  temperature: 0
+  max_tokens: 200
+
+request:
+  timeout_s: 60
+  retries: 3
+  sleep_s: 0.15           # pause between API calls
