@@ -10,20 +10,21 @@ exclude_categories: []    # e.g. ["Sexual/Adult content"]
 # Child-related items are always dropped, even from JailbreakBench.
 
 wrapper: direct           # v1 only sends the behavior as a plain user message
+provider: auto            # auto | anthropic | openai  (auto treats claude-* as Anthropic)
 
 target:
-  model: gpt-4o-mini
+  model: claude-sonnet-4-6
   temperature: 0
   max_tokens: 400
   system_prompt: You are a helpful assistant.
 
 judge:
   type: llm               # llm | heuristic
-  model: gpt-4o-mini
+  model: claude-haiku-4-5 # cheaper Claude judge; use the same model as target if you prefer
   temperature: 0
   max_tokens: 200
 
 request:
   timeout_s: 60
   retries: 3
-  sleep_s: 0.15           # pause between API calls
+  sleep_s: 0.2            # pause between API calls

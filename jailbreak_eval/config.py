@@ -9,10 +9,13 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG = ROOT / "config.yaml"
 
+DEFAULT_CLAUDE_TARGET = "claude-sonnet-4-6"
+DEFAULT_CLAUDE_JUDGE = "claude-haiku-4-5"
+
 
 @dataclass
 class TargetConfig:
-    model: str = "gpt-4o-mini"
+    model: str = DEFAULT_CLAUDE_TARGET
     temperature: float = 0.0
     max_tokens: int = 400
     system_prompt: str = "You are a helpful assistant."
@@ -21,7 +24,7 @@ class TargetConfig:
 @dataclass
 class JudgeConfig:
     type: str = "llm"
-    model: str = "gpt-4o-mini"
+    model: str = DEFAULT_CLAUDE_JUDGE
     temperature: float = 0.0
     max_tokens: int = 200
 
@@ -30,7 +33,7 @@ class JudgeConfig:
 class RequestConfig:
     timeout_s: float = 60.0
     retries: int = 3
-    sleep_s: float = 0.15
+    sleep_s: float = 0.2
 
 
 @dataclass
@@ -42,6 +45,7 @@ class EvalConfig:
     seed: int = 0
     exclude_categories: list[str] = field(default_factory=list)
     wrapper: str = "direct"
+    provider: str = "auto"
     target: TargetConfig = field(default_factory=TargetConfig)
     judge: JudgeConfig = field(default_factory=JudgeConfig)
     request: RequestConfig = field(default_factory=RequestConfig)
@@ -52,6 +56,18 @@ class EvalConfig:
     @property
     def judge_is_llm(self) -> bool:
         return self.judge.type.lower() == "llm" and not self.dry_run
+
+
+def resolve_provider(model: str, provider: str = "auto") -> str:
+    name = (provider or "auto").strip().lower()
+    if name in {"openai", "anthropic"}:
+        return name
+    if name not in {"", "auto"}:
+        raise ValueError(f"Unknown provider {provider!r}. Use auto, anthropic, or openai.")
+    model_l = (model or "").strip().lower()
+    if model_l.startswith("claude") or "claude" in model_l:
+        return "anthropic"
+    return "openai"
 
 
 def _as_int(value: Any) -> int | None:
@@ -81,21 +97,24 @@ def load_config(path: Path | None = None) -> EvalConfig:
         seed=int(raw.get("seed", 0)),
         exclude_categories=list(raw.get("exclude_categories") or []),
         wrapper=str(raw.get("wrapper", "direct")),
+        provider=str(raw.get("provider", "auto")),
         target=TargetConfig(
-            model=str(target_raw.get("model", "gpt-4o-mini")),
+            model=str(target_raw.get("model", DEFAULT_CLAUDE_TARGET)),
             temperature=float(target_raw.get("temperature", 0)),
             max_tokens=int(target_raw.get("max_tokens", 400)),
-            system_prompt=str(target_raw.get("system_prompt", "You are a helpful assistant.")),
+            system_prompt=str(
+                target_raw.get("system_prompt", "You are a helpful assistant.")
+            ),
         ),
         judge=JudgeConfig(
             type=str(judge_raw.get("type", "llm")),
-            model=str(judge_raw.get("model", "gpt-4o-mini")),
+            model=str(judge_raw.get("model", DEFAULT_CLAUDE_JUDGE)),
             temperature=float(judge_raw.get("temperature", 0)),
             max_tokens=int(judge_raw.get("max_tokens", 200)),
         ),
         request=RequestConfig(
             timeout_s=float(request_raw.get("timeout_s", 60)),
             retries=int(request_raw.get("retries", 3)),
-            sleep_s=float(request_raw.get("sleep_s", 0.15)),
+            sleep_s=float(request_raw.get("sleep_s", 0.2)),
         ),
     )

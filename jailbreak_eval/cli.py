@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import argparse
-import os
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-from jailbreak_eval.config import DEFAULT_CONFIG, EvalConfig, load_config
+from jailbreak_eval.config import DEFAULT_CONFIG, ROOT, EvalConfig, load_config, resolve_provider
 from jailbreak_eval.dataset import load_items
+from jailbreak_eval.llm import anthropic_key, missing_api_keys
 from jailbreak_eval.report import compute_metrics, write_report
 from jailbreak_eval.runner import run_eval
 
@@ -36,6 +36,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model", help="Target model name")
     parser.add_argument("--judge-model", help="Judge model name")
     parser.add_argument("--judge", choices=("llm", "heuristic"))
+    parser.add_argument(
+        "--provider",
+        choices=("auto", "anthropic", "openai"),
+        help="API provider. auto infers Claude models as anthropic",
+    )
     parser.add_argument("--base-url", help="OpenAI-compatible base URL")
     parser.add_argument("--dry-run", action="store_true", help="No API calls; mock replies")
     parser.add_argument(
@@ -58,6 +63,8 @@ def apply_overrides(cfg: EvalConfig, args: argparse.Namespace) -> EvalConfig:
         cfg.judge.model = args.judge_model
     if args.judge:
         cfg.judge.type = args.judge
+    if args.provider:
+        cfg.provider = args.provider
     if args.base_url:
         cfg.base_url = args.base_url
     cfg.dry_run = bool(args.dry_run)
@@ -65,7 +72,8 @@ def apply_overrides(cfg: EvalConfig, args: argparse.Namespace) -> EvalConfig:
 
 
 def main(argv: list[str] | None = None) -> int:
-    load_dotenv()
+    # Project .env must win over an empty/quoted shell variable like ANTHROPIC_API_KEY=''
+    load_dotenv(ROOT / ".env", override=True)
     args = build_parser().parse_args(argv)
     cfg = apply_overrides(load_config(args.config), args)
     items = load_items(cfg)
@@ -77,16 +85,22 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n{len(items)} items")
         return 0
 
+    target_provider = resolve_provider(cfg.target.model, cfg.provider)
     print(
         f"Running {len(items)} items | dataset={cfg.dataset} | "
         f"target={'dry-run' if cfg.dry_run else cfg.target.model} | "
+        f"provider={'dry-run' if cfg.dry_run else target_provider} | "
         f"judge={'dry-run' if cfg.dry_run else cfg.judge.type}"
     )
-    if not cfg.dry_run and not (
-        os.getenv("OPENAI_API_KEY") or os.getenv("GROQ_API_KEY") or cfg.api_key
-    ):
-        print("No API key found. Use --dry-run, or set OPENAI_API_KEY in .env")
-        return 2
+    if not cfg.dry_run:
+        missing = missing_api_keys(cfg)
+        if missing:
+            print("Missing API key(s): " + ", ".join(missing))
+            print("Copy .env.example to .env and set the key, or pass --dry-run.")
+            return 2
+        key = anthropic_key(cfg) if target_provider == "anthropic" else None
+        if key:
+            print(f"Using Anthropic key from .env ({len(key)} chars, starts with {key[:7]})")
 
     rows = run_eval(items, cfg, progress=print)
     out_dir = write_report(cfg, rows, args.out)

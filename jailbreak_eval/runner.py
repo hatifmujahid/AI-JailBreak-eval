@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from typing import Callable
 
-from jailbreak_eval.config import EvalConfig
+from jailbreak_eval.config import EvalConfig, resolve_provider
 from jailbreak_eval.dataset import Item
 from jailbreak_eval.judge import heuristic_judge, judge_messages, parse_judge_json
 from jailbreak_eval.llm import LLMClient
@@ -111,10 +111,17 @@ def run_eval(
             "label": verdict["label"],
             "rationale": verdict["rationale"],
             "target_model": "dry-run" if cfg.dry_run else cfg.target.model,
+            "provider": "dry-run" if cfg.dry_run else resolve_provider(cfg.target.model, cfg.provider),
             "judge": "dry-run" if cfg.dry_run else cfg.judge.type,
         }
         rows.append(row)
         log(f"[{index + 1}/{len(items)}] {item.id} -> {row['label']}")
+        if row["label"] == "ERROR" and row["rationale"]:
+            log(f"    {row['rationale'][:400]}")
+            lowered = row["rationale"].lower()
+            if "401" in lowered or "authentication_error" in lowered or "invalid x-api-key" in lowered:
+                log("Stopping: Anthropic rejected the API key. Check ANTHROPIC_API_KEY in .env, then rerun.")
+                break
         if not cfg.dry_run and cfg.request.sleep_s:
             time.sleep(cfg.request.sleep_s)
     return rows

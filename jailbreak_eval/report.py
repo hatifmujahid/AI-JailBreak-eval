@@ -5,7 +5,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from jailbreak_eval.config import ROOT, EvalConfig
+from jailbreak_eval.config import ROOT, EvalConfig, resolve_provider
 
 RESULTS_DIR = ROOT / "results"
 
@@ -61,7 +61,8 @@ def render_markdown(cfg: EvalConfig, metrics: dict, out_dir: Path) -> str:
         f"- Dataset: `{cfg.dataset}`",
         f"- Wrapper: `{cfg.wrapper}`",
         f"- Target: `{cfg.target.model if not cfg.dry_run else 'dry-run'}`",
-        f"- Judge: `{cfg.judge.type if not cfg.dry_run else 'dry-run'}`",
+        f"- Provider: `{resolve_provider(cfg.target.model, cfg.provider) if not cfg.dry_run else 'dry-run'}`",
+        f"- Judge: `{cfg.judge.model if not cfg.dry_run and cfg.judge.type == 'llm' else ('dry-run' if cfg.dry_run else cfg.judge.type)}`",
         f"- Output: `{out_dir}`",
         "",
         "## Headline metrics",

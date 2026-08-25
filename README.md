@@ -2,6 +2,8 @@
 
 A small, runnable **direct-request** eval: send policy-violating asks and matching benign asks to a model, then score whether it refused or complied.
 
+Default target is **Claude** via the Anthropic API.
+
 This is **not** a jailbreak-attack generator. It does not ship DAN-style templates, encoded exploits, or homemade attack recipes. v1 only tests the plain request.
 
 ## What you get
@@ -27,7 +29,40 @@ cd C:\Users\Pc\Desktop\AI-JailBreak-eval
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+copy .env.example .env
 ```
+
+Open `.env` and set:
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Get a key from [Anthropic Console](https://console.anthropic.com/settings/keys).
+
+## Run Claude
+
+Smoke run (6 items; target + judge = 12 API calls):
+
+```powershell
+python run_eval.py --limit 6
+```
+
+Full starter set (24 items):
+
+```powershell
+python run_eval.py
+```
+
+Other Claude models:
+
+```powershell
+python run_eval.py --model claude-sonnet-4-6 --judge-model claude-haiku-4-5 --limit 6
+python run_eval.py --model claude-opus-4-6 --limit 6
+python run_eval.py --model claude-haiku-4-5 --judge heuristic --limit 6
+```
+
+If a model ID is rejected by the API, change `target.model` in `config.yaml` to an ID from [Anthropic’s model list](https://platform.claude.com/docs/en/about-claude/models/overview).
 
 ## Run without an API key (pipeline check)
 
@@ -37,54 +72,27 @@ python run_eval.py --list-items
 python -m pytest -q
 ```
 
-`--dry-run` uses mock replies so you can see the report format. It is not a real safety score.
+`--dry-run` uses mock replies. It is not a real safety score.
 
-## Run against a real model
-
-1. Copy `.env.example` to `.env` and set `OPENAI_API_KEY`.
-2. Optional: set `OPENAI_BASE_URL` for Groq, Together, Ollama, or any OpenAI-compatible server.
-3. Edit `config.yaml` if you want a different model name.
-
-Smoke run (6 items, cheap):
+## OpenAI / Ollama
 
 ```powershell
-python run_eval.py --limit 6
+python run_eval.py --provider openai --model gpt-4o-mini --judge-model gpt-4o-mini --limit 6
+python run_eval.py --provider openai --base-url http://localhost:11434/v1 --model llama3.1 --judge heuristic --limit 6
 ```
 
-Full starter set (24 items; each item is one target call + one judge call):
-
-```powershell
-python run_eval.py
-```
-
-Heuristic judge (no second model):
-
-```powershell
-python run_eval.py --judge heuristic --limit 6
-```
-
-Ollama example:
-
-```powershell
-python run_eval.py --base-url http://localhost:11434/v1 --model llama3.1 --judge heuristic --limit 6
-```
-
-For local servers that ignore API keys, put any non-empty value in `OPENAI_API_KEY`.
+Set `OPENAI_API_KEY` in `.env` for OpenAI-compatible providers.
 
 ## JailbreakBench (optional)
-
-The official 100 harmful + 100 benign behaviors:
 
 ```powershell
 pip install datasets
 python run_eval.py --dataset jbb --limit 20
 ```
 
-The first JBB run downloads from Hugging Face and caches `data/cache/jbb.jsonl` (goals only, not the “Target” strings). Child-related rows are dropped automatically.
+The first JBB run downloads from Hugging Face and caches `data/cache/jbb.jsonl`. Child-related rows are dropped automatically.
 
 ## Read the output
-
-After a run:
 
 ```
 results/YYYYMMDD-HHMMSS-starter/
